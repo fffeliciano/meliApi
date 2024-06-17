@@ -1,0 +1,127 @@
+import dash
+import dash_bootstrap_components as dbc
+import dash_core_components as dcc
+import dash_html_components as html
+from dash.dependencies import Input, Output
+import dash_table
+import pandas as pd
+import plotly.express as px
+
+# Inicializar o app com tema Bootstrap
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+# Dados de exemplo
+data = pd.DataFrame({
+    'date': pd.date_range(start='2023-01-01', periods=150),
+    'sku': ['sku1', 'sku2', 'sku3'] * 50,
+    'category': ['cat1', 'cat2', 'cat3'] * 50,
+    'revenue': [100, 200, 300] * 50,
+    'profit': [10, 20, 30] * 50,
+    'product': ['product1', 'product2', 'product3'] * 50
+})
+
+# Layout do dashboard
+app.layout = dbc.Container([
+    dbc.Row([
+        dbc.Col([
+            dcc.Dropdown(
+                id='date-range',
+                options=[
+                    {'label': '7 dias', 'value': '7D'},
+                    {'label': '15 dias', 'value': '15D'},
+                    {'label': '30 dias', 'value': '30D'}
+                ],
+                value='7D',
+                clearable=False
+            ),
+        ], width=4),
+        dbc.Col([
+            dcc.RadioItems(
+                id='table-type',
+                options=[
+                    {'label': 'Faturamento', 'value': 'revenue'},
+                    {'label': 'Lucro', 'value': 'profit'},
+                    {'label': 'Produto', 'value': 'product'}
+                ],
+                value='revenue',
+                inline=True
+            ),
+        ], width=8),
+    ]),
+    dbc.Row([q
+        dbc.Col([
+            dcc.Graph(id='revenue-chart'),
+        ]),
+        dbc.Col([
+            dcc.Graph(id='profitability-chart'),
+        ]),
+    ]),
+    dbc.Row([
+        dbc.Col([
+            dash_table.DataTable(
+                id='data-table',
+                columns=[
+                    {"name": i, "id": i} for i in data.columns
+                ],
+                page_current=0,
+                page_size=10,
+                page_action='custom',
+                sort_action='custom',
+                sort_mode='single',
+                sort_by=[]
+            ),
+        ])
+    ])
+])
+
+# Callback para atualizar os gráficos e a tabela
+@app.callback(
+    [Output('revenue-chart', 'figure'),
+     Output('profitability-chart', 'figure'),
+     Output('data-table', 'data')],
+    [Input('date-range', 'value'),
+     Input('table-type', 'value'),
+     Input('data-table', 'page_current'),
+     Input('data-table', 'page_size'),
+     Input('data-table', 'sort_by')]
+)
+def update_dashboard(date_range, table_type, page_current, page_size, sort_by):
+    # Filtrar os dados com base no intervalo de datas selecionado
+    end_date = data['date'].max()
+    start_date = end_date - pd.Timedelta(date_range)
+    filtered_data = data[(data['date'] >= start_date) & (data['date'] <= end_date)]
+
+    # Gráfico de faturamento
+    revenue_fig = px.line(filtered_data, x='date', y='revenue', title='Faturamento')
+
+    # Gráfico de rentabilidade (lucro dividido por receita)
+    filtered_data['profitability'] = filtered_data['profit'] / filtered_data['revenue']
+    profitability_fig = px.line(filtered_data, x='date', y='profitability', title='Rentabilidade')
+
+    # Selecionar colunas relevantes para a tabela
+    if table_type == 'revenue':
+        columns = ['date', 'sku', 'category', 'revenue']
+    elif table_type == 'profit':
+        columns = ['date', 'sku', 'category', 'profit']
+    else:
+        columns = ['date', 'sku', 'category', 'product']
+
+    filtered_data = filtered_data[columns]
+
+    # Ordenar os dados
+    if sort_by:
+        filtered_data = filtered_data.sort_values(
+            by=sort_by[0]['column_id'],
+            ascending=sort_by[0]['direction'] == 'asc'
+        )
+
+    # Paginar os dados
+    page_start = page_current * page_size
+    page_end = page_start + page_size
+    paginated_data = filtered_data.iloc[page_start:page_end]
+
+    return revenue_fig, profitability_fig, paginated_data.to_dict('records')
+
+# Executar o app
+if __name__ == '__main__':
+    app.run_server(debug=True)
