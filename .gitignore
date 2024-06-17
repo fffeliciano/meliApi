@@ -3,7 +3,9 @@ api-ms-win*.*
 *.zip
 *.dll
 *.exe
-*.txt
+LICENSE_PYTHON.txt
+*.ipynb
+
 
 
 api-ms-win*.*
